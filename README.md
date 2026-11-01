@@ -1,44 +1,51 @@
 # Licence Guard
 
-একবার ইনস্টল করলেই Laravel সফটওয়্যারে লাইসেন্স পেজ চালু হয়। `.env`-এ কিছু দিতে হয় না। সফটওয়্যারের নাম আপনি চার জায়গায় লিখে দেন। সেই নামের `.lic` ফাইল ছাড়া লাইভ সাইট খুলবে না।
+Licence Guard keeps a Laravel application closed on a live domain until a valid licence file is uploaded. The file is signed for one product and one domain. A licence for `pos` will not open `accounting`, and a file made for one website will not open another.
 
-`localhost`-এ চেক লাগে না। প্রাইভেট কী এই প্যাকেজে নেই। ফাইল বানানো হয় `app-license-server` থেকে।
+Nothing is read from `.env`. You choose a short product name and place that same name in four spots. Local development on `localhost` stays open.
 
-## 1. ইনস্টল
+## Requirements
 
-Packagist-এ প্যাকেজ উঠানোর পর সফটওয়্যারের ফোল্ডারে শুধু এই কমান্ড:
+- PHP 8.1 or newer
+- Laravel 10, 11, or 12
 
-```bat
+## Install
+
+```bash
 composer require epixel/licence-guard
 ```
 
-`repositories` ব্লক লাগবে না। `/licence` পেজ নিজে চালু হয়।
+The package registers the `/licence` page on its own.
 
-## 2. চার জায়গায় নাম বসান
+## 1. Choose a product name
 
-নিচের `pos` শুধু উদাহরণ। অ্যাকাউন্টিংয়ের জন্য `accounting`, অন্য সফটওয়্যারের জন্য সেই সফটওয়্যারের ছোট নাম দিন। চার জায়গায় একই নাম থাকতে হবে। ছোট হাতের অক্ষর, সংখ্যা, `_` আর `-` চলবে।
+Use one short name for the whole application, such as `pos` or `accounting`. Use the same name in every step below.
 
-### public/index.php
+Allowed characters are lowercase letters, numbers, `_`, and `-`. The name must start with a letter or number and can be up to 41 characters.
 
-ফাইলের একদম উপরে, `vendor/autoload.php`-এর আগে:
+## 2. Connect the guard
 
-```php
-require __DIR__.'/../vendor/epixel/licence-guard/gate.php';
-licence_guard('pos', dirname(__DIR__));
-```
+### `public/index.php`
 
-### bootstrap/app.php
-
-ফাইলের একদম উপরে:
+Place this at the top of the file, before `vendor/autoload.php` is loaded:
 
 ```php
 require __DIR__.'/../vendor/epixel/licence-guard/gate.php';
 licence_guard('pos', dirname(__DIR__));
 ```
 
-### বেস কন্ট্রোলার
+### `bootstrap/app.php`
 
-`app/Http/Controllers/Controller.php`-এর কনস্ট্রাক্টরে:
+Place the same two lines at the top of the file:
+
+```php
+require __DIR__.'/../vendor/epixel/licence-guard/gate.php';
+licence_guard('pos', dirname(__DIR__));
+```
+
+### Base controller
+
+In `app/Http/Controllers/Controller.php`:
 
 ```php
 public function __construct()
@@ -47,59 +54,63 @@ public function __construct()
 }
 ```
 
-কন্ট্রোলার আগে থেকে এই ক্লাস এক্সটেন্ড করলে নতুন কন্ট্রোলারে আলাদা করে বসাতে হয় না।
+Controllers that extend this class are covered. You do not add the check to each controller.
 
-### মেইন লেআউট
+### Main layout
 
-যে লেআউট দিয়ে পেজগুলো রেন্ডার হয়, তার হেডারের শুরুতে:
+At the top of the layout that renders your pages:
 
 ```blade
 @include('licence-guard::check', ['product' => 'pos'])
 ```
 
-## 3. লাইভ সাইট চালু করার ছাপ
+## 3. Turn the check on
 
-ইনস্টল শেষ হলে এই খালি ফাইলটা থাকতে হবে:
+After setup, the application needs an empty file:
 
-`storage/installed.lock`
+```text
+storage/installed.lock
+```
 
-যে সফটওয়্যারে ইনস্টলার নেই, ডিপ্লয়ের পর এই ফাইলটা একবার বানিয়ে রাখুন। ফাইল না থাকলে লাইভ সাইট খোলা থাকে, যাতে সেটআপ শেষ করা যায়।
+If the application has no installer, create that file once when you deploy. Until the file exists, the live site stays open so setup can finish.
 
-## 4. লাইসেন্স ফাইল বানানো
+## 4. Activate
 
-`app-license-server` ফোল্ডারে:
+On the live website, open:
 
-```bat
+```text
+https://customerdomain.com/licence
+```
+
+Upload the `.lic` file, or paste its contents. When the product name and domain match, the application opens.
+
+## Issuing a licence
+
+From the licence server:
+
+```bash
 php artisan licence:issue customerdomain.com --product=pos
 ```
 
-ফাইল তৈরি হবে:
+The file is written to:
 
-`storage\app\licence\issued\pos.customerdomain.com.lic`
+```text
+storage/app/licence/issued/pos.customerdomain.com.lic
+```
 
-`--days` না দিলে মেয়াদ শেষ হয় না। এক বছরের জন্য:
+Send that file to the customer. Omit `--days` for a licence that does not expire. For one year:
 
-```bat
+```bash
 php artisan licence:issue customerdomain.com --product=pos --days=365
 ```
 
-`--product` না দিলে পুরনো অ্যাকাউন্টিং সফটওয়্যারের নামই বসে: `inventory_accounting_system`।
+If `--product` is omitted, the name `inventory_accounting_system` is used.
 
-এই `.lic` ফাইল কাস্টমারকে পাঠান। `private.pem` পাঠাবেন না।
+## What stays open
 
-## 5. কাস্টমার কী করবে
-
-1. সফটওয়্যার নিজের হোস্টিংয়ে তুলবে।
-2. `https://customerdomain.com/licence` খুলবে।
-3. আপনার দেওয়া `.lic` ফাইল আপলোড করবে।
-
-ডোমেইন আর সফটওয়্যারের নাম মিললে সফটওয়্যার খুলবে। `pos`-এর ফাইল `accounting`-এ খাটবে না। অন্য ডোমেইনেও খাটবে না।
-
-## কোন জায়গা খোলা থাকে
-
-- `localhost`, `127.0.0.1`
+- `localhost` and `127.0.0.1`
 - `/installer`
 - `/licence`
-- `storage/installed.lock` না থাকলে পুরো সাইট
+- Any site that does not yet have `storage/installed.lock`
 
-লাইভ ডোমেইনে লক ফাইল থাকলে বাকি সব পেজ লাইসেন্স চায়।
+On a live domain, once `storage/installed.lock` exists, every other page asks for a valid licence.
